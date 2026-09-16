@@ -1,12 +1,12 @@
 # NAUD: Compressor Anomaly Detection (Model Component)
 
-Predictive/anomaly detection model for Renaissance Innovation Week 2026, Challenge 4.
-This repo covers the ML component: data, EDA, feature engineering, model training,
-and the full detect → explain → classify pipeline.
+Predictive/anomaly detection system for Renaissance Innovation Week 2026, Challenge 4.
+This repo covers the ML component end-to-end: data, EDA, feature engineering, model
+training, evidence/explanation layer, severity classification, and a deployable API.
 
 ## Dataset
 MetroPT-3 (UCI #791) — real industrial air compressor sensor data, ~1.5M rows,
-Feb-Sep 2020, 4 documented air leak failure events. Raw CSV is gitignored due to size;
+Feb–Sep 2020, 4 documented air leak failure events. Raw CSV is gitignored due to size;
 download from https://archive.ics.uci.edu/dataset/791/metropt%2B3%2B
 
 ## Status
@@ -14,12 +14,35 @@ download from https://archive.ics.uci.edu/dataset/791/metropt%2B3%2B
 - [x] Feature engineering — validated rolling-window features (see outputs/)
 - [x] Model training (Isolation Forest) — trained on normal data, tested on held-out Failure 4
 - [x] Evaluation — see Results below
-- [x] Evidence/explanation layer — per-alert feature attribution
-- [x] Severity classification — MONITOR / INVESTIGATE / ESCALATE, thresholds set from
-      real data quantiles (25th/75th percentile of deviation magnitude)
-- [x] Packaged into a reusable pipeline class (`CompressorAnomalyPipeline`)
+- [x] Evidence/explanation layer — per-alert feature attribution, correctly signed (higher/lower than normal)
+- [x] Severity classification — MONITOR / INVESTIGATE / ESCALATE, thresholds set from real data quantiles
+- [x] Plain-language translation layer — rule-based, deterministic (`src/explain.py`)
+- [x] Optional LLM-powered explanation layer with automatic fallback (`src/explain_llm.py`)
+- [x] Packaged into a reusable pipeline class (`src/pipeline.py`)
+- [x] Reproducible training script (`src/train.py`)
 - [x] Validated across all 4 documented failures
-- [x] Investigated false positives — found early-warning signal (see below)
+- [x] Deployable API (`src/api.py`) — see API_DOCS.md
+- [ ] Deployed to a public URL for team integration
+- [ ] Live demo rehearsal
+
+## Repo structure
+```
+├── README.md
+├── API_DOCS.md              ← full API reference for backend integration
+├── requirements.txt
+├── notebooks/
+│   └── eda.ipynb             (exploration record — not the source of truth for production code)
+├── src/
+│   ├── pipeline.py           CompressorAnomalyPipeline class
+│   ├── explain.py            Rule-based plain-language layer (default, no dependencies)
+│   ├── explain_llm.py        Optional LLM-powered layer, falls back to explain.py on failure
+│   ├── train.py               Reproducible end-to-end training script
+│   └── api.py                 FastAPI service
+├── models/
+│   └── compressor_pipeline_v3.pkl
+├── data/                     (gitignored — raw + processed CSVs)
+├── outputs/                  (EDA plots and summary CSVs)
+```
 
 ## Key finding
 In every documented failure, the compressor loses its normal on/off duty-cycling and
@@ -47,19 +70,44 @@ keeping only sustained anomalous behavior.
 
 Severity thresholds (ESCALATE ≥3.2 std devs, INVESTIGATE ≥2.0, MONITOR below) were set
 from the actual 75th/25th percentiles of deviation magnitude observed across the full
-test set — not arbitrary guesses. The held-out failure (4) is classified almost entirely
-ESCALATE, consistent with it showing the largest oil temperature deviation (+3.17 std)
-of all four failures — the severity layer tracks real differences in failure intensity.
+test set. The held-out failure (4) is classified almost entirely ESCALATE, consistent
+with it showing the largest oil temperature deviation (+3.17 std) of all four failures.
 
-## Early-warning behavior
-Of the 13,323 alerts flagged outside the four labeled failure windows, 5,554 (42%)
-occurred within 24 hours of a known failure, and 2,287 (17%) within just 6 hours.
-This suggests a meaningful share of "false positives" are early-warning signals —
-the compressor showing degraded behavior before the officially documented failure
-window begins, which the labels do not credit but which is the intended behavior
-of a predictive maintenance system. The remaining alerts, scattered further from any
-known failure, likely include genuine false positives — real precision remains an
-area for improvement with more diverse training data.
+## Early-warning behavior (reframing "false positives")
+Of alerts flagged outside the four labeled failure windows, 42% occurred within 24
+hours of a known failure, and 17% within just 6 hours — suggesting a meaningful share
+of "false positives" are early-warning signals the labels simply don't credit.
+
+## Plain-language layer
+Two implementations, same interface:
+- **`explain.py`** (default): rule-based templates. Every sentence is grounded directly
+  in computed numbers — deterministic, free, instant, cannot hallucinate. This is what
+  the deployed API uses by default.
+- **`explain_llm.py`** (optional): sends the same structured, already-computed data to
+  an LLM for more natural phrasing. The LLM only rephrases given numbers — it never
+  sees raw sensor data and cannot invent findings. Falls back automatically to
+  `explain.py` if the API call fails for any reason.
+
+## API
+Full request/response reference in **[API_DOCS.md](./API_DOCS.md)**.
+
+Quick start:
+```bash
+pip install -r requirements.txt
+uvicorn src.api:app --reload --port 8000
+curl http://localhost:8000/health
+```
+
+`POST /analyze` accepts a batch of recent raw sensor rows (ideally ~60+, covering
+~10 minutes) and returns structured + plain-language alerts — no Python or ML
+knowledge required on the caller's side.
+
+## Retraining
+```bash
+python src/train.py --data "data/MetroPT3(AirCompressor).csv" --out models/compressor_pipeline_v4.pkl
+```
+Fully reproducible — one command from raw data to a validated, saved pipeline.
+Useful if the team gets new or updated sensor data later.
 
 ## Full pipeline example (single alert, real held-out data)
 ```
@@ -68,22 +116,7 @@ area for improvement with more diverse training data.
  'flag_rate': 1.0}
 ```
 
-## Repo structure
-```
-├── README.md
-├── notebooks/
-│   └── eda.ipynb
-├── data/                  (gitignored — raw + processed CSVs)
-├── models/
-│   ├── isolation_forest_v1.pkl
-│   └── compressor_pipeline_v2.pkl
-├── outputs/
-│   ├── Failure_1.png ... Failure_4.png
-│   ├── sensor_overview.png
-│   └── failure_sensor_summary.csv
-```
-
-## Known limitations
+## Known limitations / honest next steps
 - Only 4 documented failures exist in this dataset, all air leaks — model is validated
   on this failure type only, not on other failure modes (e.g. oil leaks).
 - Precision against strict labeled windows is moderate (10%), though a substantial
@@ -92,4 +125,5 @@ area for improvement with more diverse training data.
   not yet validated against real operator judgment.
 - Trained and validated on MetroPT-3 (metro compressor data) as a proxy for oil & gas
   compression equipment — same underlying physics (duty-cycling, motor load, leak
-  dynamics).
+  dynamics), but not yet tested on real Renaissance sensor data.
+- API not yet deployed to a public URL — currently local-only.
