@@ -51,7 +51,7 @@ test set — not arbitrary guesses. The held-out failure (4) is classified almos
 ESCALATE, consistent with it showing the largest oil temperature deviation (+3.17 std)
 of all four failures — the severity layer tracks real differences in failure intensity.
 
-## Early-warning behavior (reframing "false positives")
+## Early-warning behavior
 Of the 13,323 alerts flagged outside the four labeled failure windows, 5,554 (42%)
 occurred within 24 hours of a known failure, and 2,287 (17%) within just 6 hours.
 This suggests a meaningful share of "false positives" are early-warning signals —
@@ -83,7 +83,7 @@ area for improvement with more diverse training data.
 │   └── failure_sensor_summary.csv
 ```
 
-## Known limitations / honest next steps
+## Known limitations
 - Only 4 documented failures exist in this dataset, all air leaks — model is validated
   on this failure type only, not on other failure modes (e.g. oil leaks).
 - Precision against strict labeled windows is moderate (10%), though a substantial
@@ -92,4 +92,4 @@ area for improvement with more diverse training data.
   not yet validated against real operator judgment.
 - Trained and validated on MetroPT-3 (metro compressor data) as a proxy for oil & gas
   compression equipment — same underlying physics (duty-cycling, motor load, leak
-  dynamics), but not yet tested on real Renaissance sensor data.
+  dynamics).
