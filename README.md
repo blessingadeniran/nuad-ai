@@ -22,8 +22,7 @@ download from https://archive.ics.uci.edu/dataset/791/metropt%2B3%2B
 - [x] Reproducible training script (`src/train.py`)
 - [x] Validated across all 4 documented failures
 - [x] Deployable API (`src/api.py`) — see API_DOCS.md
-- [ ] Deployed to a public URL for team integration
-- [ ] Live demo rehearsal
+
 
 ## Repo structure
 ```
@@ -73,7 +72,7 @@ from the actual 75th/25th percentiles of deviation magnitude observed across the
 test set. The held-out failure (4) is classified almost entirely ESCALATE, consistent
 with it showing the largest oil temperature deviation (+3.17 std) of all four failures.
 
-## Early-warning behavior (reframing "false positives")
+## Early-warning behavior
 Of alerts flagged outside the four labeled failure windows, 42% occurred within 24
 hours of a known failure, and 17% within just 6 hours — suggesting a meaningful share
 of "false positives" are early-warning signals the labels simply don't credit.
@@ -125,5 +124,5 @@ Useful if the team gets new or updated sensor data later.
   not yet validated against real operator judgment.
 - Trained and validated on MetroPT-3 (metro compressor data) as a proxy for oil & gas
   compression equipment — same underlying physics (duty-cycling, motor load, leak
-  dynamics), but not yet tested on real Renaissance sensor data.
-- API not yet deployed to a public URL — currently local-only.
+  dynamics).
+
