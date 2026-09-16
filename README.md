@@ -19,11 +19,12 @@ download from https://archive.ics.uci.edu/dataset/791/metropt%2B3%2B
       real data quantiles (25th/75th percentile of deviation magnitude)
 - [x] Packaged into a reusable pipeline class (`CompressorAnomalyPipeline`)
 - [x] Validated across all 4 documented failures
+- [x] Investigated false positives — found early-warning signal (see below)
 
 ## Key finding
 In every documented failure, the compressor loses its normal on/off duty-cycling and
 runs continuously instead — this loss-of-rhythm is the core signal the model is built
-around (see `outputs/` for supporting plots). `H1_cycle_transitions` showed a 50-1000x
+around (see `outputs/` for supporting plots). `H1_cycle_transitions` showed a 50–1000x
 drop during failures compared to normal operation, consistent across all 4 events.
 
 ## Model & Evaluation
@@ -50,16 +51,45 @@ test set — not arbitrary guesses. The held-out failure (4) is classified almos
 ESCALATE, consistent with it showing the largest oil temperature deviation (+3.17 std)
 of all four failures — the severity layer tracks real differences in failure intensity.
 
+## Early-warning behavior (reframing "false positives")
+Of the 13,323 alerts flagged outside the four labeled failure windows, 5,554 (42%)
+occurred within 24 hours of a known failure, and 2,287 (17%) within just 6 hours.
+This suggests a meaningful share of "false positives" are early-warning signals —
+the compressor showing degraded behavior before the officially documented failure
+window begins, which the labels do not credit but which is the intended behavior
+of a predictive maintenance system. The remaining alerts, scattered further from any
+known failure, likely include genuine false positives — real precision remains an
+area for improvement with more diverse training data.
+
 ## Full pipeline example (single alert, real held-out data)
+```
 {'severity': 'ESCALATE',
  'top_features': [('Oil_temperature_roll_mean', 3.29), ('TP2_roll_std', 1.55), ('H1_roll_std', 1.43)],
  'flag_rate': 1.0}
+```
+
+## Repo structure
+```
+├── README.md
+├── notebooks/
+│   └── eda.ipynb
+├── data/                  (gitignored — raw + processed CSVs)
+├── models/
+│   ├── isolation_forest_v1.pkl
+│   └── compressor_pipeline_v2.pkl
+├── outputs/
+│   ├── Failure_1.png ... Failure_4.png
+│   ├── sensor_overview.png
+│   └── failure_sensor_summary.csv
+```
 
 ## Known limitations / honest next steps
 - Only 4 documented failures exist in this dataset, all air leaks — model is validated
   on this failure type only, not on other failure modes (e.g. oil leaks).
-- Precision remains moderate (10%) — real deployment would generate meaningful false
-  alarms alongside true detections; acceptable trade-off given recall priority, but
-  worth improving with more diverse training data.
+- Precision against strict labeled windows is moderate (10%), though a substantial
+  share of flagged alerts appear to be genuine early warnings rather than noise.
 - Severity thresholds are calibrated against this dataset's observed distribution,
   not yet validated against real operator judgment.
+- Trained and validated on MetroPT-3 (metro compressor data) as a proxy for oil & gas
+  compression equipment — same underlying physics (duty-cycling, motor load, leak
+  dynamics), but not yet tested on real Renaissance sensor data.
